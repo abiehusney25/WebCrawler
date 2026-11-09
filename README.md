@@ -12,6 +12,54 @@ chosen depth. For every page it saves the links it found and works out the page'
 Solution `WebCrawler.sln`: `WebCrawler.Api`, `WebCrawler.Worker`, `WebCrawler.Core` (shared logic),
 `WebCrawler.Tests`, plus `web/` (React).
 
+## Summary
+
+**What I implemented.** Everything the brief asks for, plus its stretch goal:
+- A Crawl API and a separate Crawl Worker (2 copies) talking through RabbitMQ.
+- SQL Server tables for jobs, pages, links and parent -> child edges.
+- The full job lifecycle, with cancel.
+- A crawler with depth and page limits, timeouts and retries, that reads HTML only.
+- The Domain Link Ratio for every page.
+- A React UI with Start Crawl, Job Details (live progress and the page tree) and History.
+- Duplicate-safe message handling, with retries and a dead-letter queue.
+- Logs that carry the job id, health checks for both services, 107 tests including a crawl over local HTML
+  files, Docker Compose for the whole system, and a CI pipeline.
+
+**The main choices.** Each job is one message, and the crawl's to-do list lives in the database. Duplicate
+messages, crashed workers and redelivery are therefore all safe, and a crashed job carries on where it stopped.
+The system can also run with one command and no setup (SQLite + a built-in queue), using the same code that
+runs on SQL Server + RabbitMQ in Docker. Every limit is a setting in `Config/settings.csv`.
+
+**The main trade-offs** are listed just below, and explained in [section 2](#2-key-architectural-choices).
+
+## Assumptions and trade-offs
+
+**Assumptions** (where the brief leaves room; details in [section 8](#8-crawling-rules-and-assumptions)):
+- **Starting domain** = the host of the address typed in, as the brief says; the DLR uses only that host. If
+  the start page redirects to another host (`example.com` -> `www.example.com`), the crawler still follows
+  that host, so the crawl doesn't stop at the first page.
+- **Outgoing links** = every `http`/`https` link on the page, including links back to the same page (`#top`).
+  A link that appears twice counts twice. `mailto:`, `tel:` and other non-web links are ignored. A page with no
+  links has a DLR of 0.
+- Each url is crawled **once per job**, at the depth where it was first found. The `#fragment` is ignored when
+  comparing urls.
+- **Limits:** depth 0-5 (default 2), 200 pages per job, 10 s per request, 3 retries, HTML only, 2 MB per page,
+  and up to 1,000 links *stored* per page (counts and the DLR always use every link).
+- **A failed page never fails the job**; only a failed start page does.
+- Local and private network addresses are refused, for safety.
+
+**Trade-offs:**
+
+| Choice | Gain | Cost |
+|--------|------|------|
+| One message per job, to-do list in the database | No page downloaded twice, no row saved twice, crashed jobs resume | One job is crawled by one worker at a time |
+| A page, its new links and its edges saved in one transaction | A crash never leaves anything half-saved | Slightly longer database writes |
+| RabbitMQ (not Kafka) | Built-in "one worker per task", retries and dead-letter queue; lighter to run | No message replay (not needed here) |
+| React page served by the API | One address, no extra web server | Running without Docker needs Node.js once |
+| Database creates itself (no migrations) | Nothing for a reviewer to set up | A real deployment should use migrations |
+| Live updates with server-sent events (refreshing as a backup) | Simple, no extra hub | The API checks the database every 1.5 s per open page |
+| Cut for time | Focus on the required features | No per-page messages, robots.txt, logins or front-end unit tests ([section 5](#5-what-i-cut-and-why)) |
+
 ---
 
 ## 1. How to run it locally
@@ -244,6 +292,19 @@ JSON so they can be searched. Both the API and the worker have health checks: `/
 | `Links` | page id, url, internal or external, how many times it appeared | by page |
 | `Edges` | job id, parent page, child page | **one row per parent/child pair (unique)**; by child |
 
+**Performance thinking**
+- **Messages carry only the job id.** The queue stays small and a message is never out of date.
+- **"Already have this url?" is one indexed lookup.** It uses a 64-character SHA-256 fingerprint of the url,
+  because SQL Server can't index very long text. The same fingerprint is the unique key that stops duplicates.
+- **"Next page to crawl" uses the (job, status, depth) index.** There's no table scan, even with many pages.
+- **Progress needs no extra columns.** It's one grouped count of the job's pages by status, so there are no
+  counters to keep in sync.
+- **History is read one page at a time**, newest first, through an index on the created time.
+- **A page's links are loaded only when you open them.** Up to 1,000 links are stored per page, while the counts
+  and DLR use all of them.
+- **New links are checked against the database in batches of 500.** That stays under SQL Server's limit of about
+  2,100 parameters per query.
+
 ## 8. Crawling rules and assumptions
 
 - Only full `http`/`https` addresses are accepted; local and private addresses are refused.
@@ -263,7 +324,7 @@ JSON so they can be searched. Both the API and the worker have health checks: `/
 - Job statuses: **Pending -> Running -> Completed, Failed or Canceled**. Cancel is checked before every page;
   pages already saved are kept.
 - Limits (all in `settings.csv`): depth 0-5 (default 2), 200 pages per job, 10 s per try, 45 s per page,
-  5 redirects, 2 MB, 3 retries.
+  5 redirects, 2 MB, 3 retries, 1,000 links stored per page (counts and the DLR use every link).
 
 ## 9. Tests
 

@@ -14,7 +14,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet build -warnaserror
+      # the web job below builds the React page; skip it here so npm output can never fail this build
+      - run: dotnet build -warnaserror -p:SkipWebPage=true
       - run: dotnet test --no-build
 
   docker:
