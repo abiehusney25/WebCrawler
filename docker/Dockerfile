@@ -26,7 +26,8 @@ RUN dotnet restore src/WebCrawler.Api/WebCrawler.Api.csproj \
  && dotnet restore src/WebCrawler.Worker/WebCrawler.Worker.csproj
 
 COPY src/ src/
-RUN dotnet publish src/WebCrawler.Api -c Release -o /out/api --no-restore \
+# the web page comes from the node stage above, so the .NET build skips it
+RUN dotnet publish src/WebCrawler.Api -c Release -o /out/api --no-restore -p:SkipWebPage=true \
  && dotnet publish src/WebCrawler.Worker -c Release -o /out/worker --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0

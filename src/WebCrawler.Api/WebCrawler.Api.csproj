@@ -1,7 +1,9 @@
 <!--
   WebCrawler.Api
-  ASP.NET Core Minimal API + the plain HTML/JS frontend in wwwroot.
+  ASP.NET Core Minimal API + the React web page (built from web/ into wwwroot).
   With WorkerMode=InProcess it also runs the worker, so one "dotnet run" is enough.
+  BuildWebPage: the first build of a fresh clone (dotnet build / dotnet run / Visual Studio) builds the
+  React page too, if Node.js is installed. Docker builds it in its own Node stage (SkipWebPage=true).
 -->
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
@@ -12,5 +14,21 @@
   <ItemGroup>
     <ProjectReference Include="..\WebCrawler.Core\WebCrawler.Core.csproj" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <WebFolder>$(MSBuildProjectDirectory)\..\..\web</WebFolder>
+  </PropertyGroup>
+
+  <Target Name="BuildWebPage" BeforeTargets="BeforeBuild"
+          Condition="'$(SkipWebPage)' != 'true' And !Exists('wwwroot\index.html') And Exists('$(WebFolder)\package.json')">
+    <Exec Command="npm --version" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="NpmExitCode" />
+    </Exec>
+    <Message Importance="high" Condition="'$(NpmExitCode)' != '0'"
+             Text="FAIL web page not built: Node.js (npm) was not found. Install Node.js 20+ and build again, or use Docker." />
+    <Message Importance="high" Condition="'$(NpmExitCode)' == '0'" Text=":TRYING: building the React web page (first build only)..." />
+    <Exec Condition="'$(NpmExitCode)' == '0'" Command="npm ci --no-audit --no-fund" WorkingDirectory="$(WebFolder)" />
+    <Exec Condition="'$(NpmExitCode)' == '0'" Command="npm run build" WorkingDirectory="$(WebFolder)" />
+  </Target>
 
 </Project>

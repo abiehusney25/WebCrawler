@@ -87,7 +87,7 @@ public class Program
         if (!File.Exists(Path.Combine(webFolder, "index.html")) && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
             webFolder = Path.Combine(AppContext.BaseDirectory, "wwwroot");   // published build (Docker)
         if (!File.Exists(Path.Combine(webFolder, "index.html")))
-            app.Logger.LogWarning("FAIL React UI not built ({Folder}): run \"npm install\" + \"npm run build\" in web/ (the API works without it)", webFolder);
+            app.Logger.LogWarning("FAIL web page not built ({Folder}): install Node.js and build again, or run \"npm ci\" + \"npm run build\" in web/ (the API works without it)", webFolder);
         Directory.CreateDirectory(webFolder);
         PhysicalFileProvider webFiles = new PhysicalFileProvider(webFolder);
         StaticFileOptions webOptions = new StaticFileOptions { FileProvider = webFiles };
@@ -107,9 +107,26 @@ public class Program
         JobEndpoints.Map(app);
         JobEventEndpoints.Map(app);
 
-        // React routes (/jobs/{id}, /history) -> index.html on reload; unknown /api paths stay 404
-        app.MapFallbackToFile("{*path:regex(^(?!api/|health/|swagger).*$)}", "index.html", webOptions);
+        // React routes (/jobs/{id}, /history) -> index.html on reload; unknown /api paths stay 404.
+        // No web page built yet -> say how to build it instead of a bare 404.
+        const string pagePattern = "{*path:regex(^(?!api/|health/|swagger).*$)}";
+        if (File.Exists(Path.Combine(webFolder, "index.html")))
+            app.MapFallbackToFile(pagePattern, "index.html", webOptions);
+        else
+            app.MapFallback(pagePattern, () => Results.Content(WebPageMissing, "text/html", statusCode: 503));
     }
+
+    private const string WebPageMissing = """
+        <!DOCTYPE html><html><head><meta charset="utf-8"><title>Web Crawler</title></head>
+        <body style="font-family: Segoe UI, Arial, sans-serif; max-width: 40rem; margin: 3rem auto; line-height: 1.5">
+        <h1>Web Crawler</h1>
+        <p>The API is running, but the web page has not been built yet.</p>
+        <p><b>Fix:</b> install <a href="https://nodejs.org">Node.js 20+</a>, then build again
+        (<code>dotnet build</code> builds the page the first time), or double-click <code>RunCrawler.bat</code>,
+        or run <code>npm ci</code> and <code>npm run build</code> in the <code>web</code> folder. Then restart.</p>
+        <p>The API itself works: <a href="/swagger">/swagger</a>, <a href="/health/ready">/health/ready</a>.</p>
+        </body></html>
+        """;
 
     // CheckDatabase - create tables if they are missing (retries while SQL Server starts)
     private static async Task CheckDatabase()
