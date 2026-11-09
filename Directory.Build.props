@@ -1,0 +1,14 @@
+<!--
+  Directory.Build.props
+  Shared settings for every project. Switch the .NET version here, in ONE place.
+-->
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

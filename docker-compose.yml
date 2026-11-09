@@ -1,0 +1,93 @@
+# =============================================================================
+# docker-compose.yml - the full stack: API + separate Worker + SQL Server + RabbitMQ
+#   docker compose up --build        then open http://localhost:5000
+#   RabbitMQ UI: http://localhost:15672 (user/pass from .env, defaults below)
+# Passwords default to local-only dev values; put real ones in .env (see .env.sample).
+# Every WEBCRAWLER_<Key> variable overrides the same key in Config/settings.csv.
+# =============================================================================
+x-app-env: &app-env
+  WEBCRAWLER_Url: http://+:5000
+  WEBCRAWLER_DbMode: SqlServer
+  WEBCRAWLER_QueueMode: RabbitMq
+  WEBCRAWLER_WorkerMode: Separate
+  WEBCRAWLER_SqlServerConnection: Server=sqlserver;Database=WebCrawler;User Id=sa;TrustServerCertificate=True
+  WEBCRAWLER_SqlServerPassword: ${SA_PASSWORD:-WebCrawler_Dev_123!}
+  WEBCRAWLER_RabbitHost: rabbitmq
+  WEBCRAWLER_RabbitUser: ${RABBIT_USER:-webcrawler}
+  WEBCRAWLER_RabbitPassword: ${RABBIT_PASSWORD:-webcrawler_dev}
+  WEBCRAWLER_DbStartupRetries: "20"
+  WEBCRAWLER_LogFormat: Json                 # structured logs, JobId in the scope of every job line
+  WEBCRAWLER_WorkerHealthUrl: http://+:8081  # worker health endpoints (inside the container only)
+
+x-app-depends: &app-depends
+  sqlserver:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:-WebCrawler_Dev_123!}
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER:-webcrawler}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD:-webcrawler_dev}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: webcrawler-app:local
+    working_dir: /app/api
+    environment: *app-env
+    ports:
+      - "${API_PORT:-5000}:5000"        # API_PORT=5055 docker compose up ... if 5000 is busy
+    healthcheck:
+      # no curl in the aspnet image: plain HTTP over bash's /dev/tcp
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/5000 && printf "GET /health/ready HTTP/1.0\r\n\r\n" >&3 && grep -q " 200 " <&3']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on: *app-depends
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: webcrawler-app:local
+    working_dir: /app/worker
+    entrypoint: ["dotnet", "WebCrawler.Worker.dll"]
+    environment: *app-env
+    depends_on: *app-depends
+    healthcheck:
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8081 && printf "GET /health/ready HTTP/1.0\r\n\r\n" >&3 && grep -q " 200 " <&3']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 2                       # two workers: proves the claims + unique indexes keep it idempotent
+

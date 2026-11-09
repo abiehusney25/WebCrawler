@@ -1,0 +1,17 @@
+# Used for docker/Dockerfile (BuildKit reads <Dockerfile>.dockerignore). Paths are from the repo root.
+**/bin/
+**/obj/
+**/TestResults/
+Output/
+Input/
+Logs/
+tests/
+.git/
+.vs/
+.idea/
+.vscode/
+*.db
+.env
+Config/secrets.csv
+web/node_modules/
+src/WebCrawler.Api/wwwroot/

@@ -1,0 +1,59 @@
+Key,Value
+# Everything "hardcoded" lives here. Code has a default for every key.
+# Lookup order: environment variable WEBCRAWLER_<Key> -> this file -> code default.
+# Comments must be whole lines starting with #, never after a value.
+# --- app ---
+AppName,Web Crawler
+Url,http://localhost:5000
+Swagger,true
+WebFolder,src/WebCrawler.Api/wwwroot
+SitesFile,Config/sites.csv
+OutputFolder,Output
+# LogFormat: Simple (one line, readable) | Json (structured; Docker uses it)
+LogFormat,Simple
+# --- modes: one switch each ---
+# DbMode: Sqlite | SqlServer
+DbMode,Sqlite
+# QueueMode: InMemory | RabbitMq
+QueueMode,InMemory
+# WorkerMode: InProcess | Separate
+WorkerMode,InProcess
+# health endpoints of a separate worker (WebCrawler.Worker): /health/live, /health/ready
+WorkerHealthUrl,http://localhost:5001
+# --- connections (real passwords go in secrets.csv) ---
+SqliteFile,Output/webcrawler.db
+# no commas inside values (default SQL port 1433 is used; quote a value if it must hold a comma)
+SqlServerConnection,Server=localhost;Database=WebCrawler;User Id=sa;TrustServerCertificate=True
+DbStartupRetries,10
+RabbitHost,localhost
+RabbitUser,guest
+RabbitQueue,webcrawler-jobs
+QueueSendTimeoutSeconds,5
+# --- work limits ---
+# new crawl jobs allowed per client ip per minute (then 429)
+CreateJobsPerMinute,30
+DefaultMaxDepth,2
+MaxDepthAllowed,5
+MaxPagesPerJob,200
+RequestTimeoutSeconds,10
+PageTimeoutSeconds,45
+MaxRetries,3
+MaxPageBytes,2000000
+MaxRedirects,5
+WorkerCount,2
+PerHostDelayMs,250
+# downloads in flight per job; they still START PerHostDelayMs apart (same rate, less idle time)
+FetchesPerJob,2
+# wait before re-checking the frontier while another worker finishes a page of the same job
+FrontierWaitMs,500
+# links stored per page (counts and DLR always use every link)
+MaxLinksPerPage,1000
+BlockPrivateAddresses,true
+UserAgent,WebCrawler/1.0 (+assessment)
+# optional pause before a job starts (demo only); 0 for real work
+WorkDelayMs,0
+# --- ui ---
+PollIntervalMs,1500
+# LiveUpdates: true = Job Details listens to server-sent events (SSE); false = plain polling
+LiveUpdates,true
+HistoryPageSize,20

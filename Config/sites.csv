@@ -1,0 +1,7 @@
+Name,Url,Enabled
+# Sample inputs shown as quick-pick buttons in the UI. Set Enabled to false to hide a row.
+Example,https://example.com,true
+Books to Scrape,https://books.toscrape.com,true
+Wikipedia EDI,https://en.wikipedia.org/wiki/Electronic_data_interchange,true
+Broken,https://this-site-does-not-exist.invalid,true
+Localhost (blocked),http://localhost:5000,false

@@ -1,0 +1,132 @@
+// =============================================================================
+// WebCrawler API
+// Main is the table of contents: config from Config/settings.csv, services,
+// endpoints, database, then run until Ctrl+C. With WorkerMode=InProcess the
+// worker runs here too, so one "dotnet run" is the whole app.
+// =============================================================================
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using WebCrawler.Api.Endpoints;
+using WebCrawler.Core;
+using WebCrawler.Core.Data;
+using Microsoft.Extensions.FileProviders;
+
+namespace WebCrawler.Api;
+
+public class Program
+{
+    private static Settings settings = new Settings();
+    private static WebApplication app = null!;
+
+    public static async Task Main(string[] args)
+    {
+        Console.WriteLine("Hello World! WebCrawler API starting...");
+
+        Init();
+        LoadConfig();
+        SetUpServices(args);
+        MapEndpoints();
+        await CheckDatabase();
+        await RunApp();     // blocks until Ctrl+C
+        CleanUp();
+    }
+
+    // Init - find the project root and make sure folders and starter CSVs exist
+    private static void Init()
+    {
+        settings = new Settings { RootFolder = Settings.FindRootFolder() };
+        settings.CheckFiles();
+    }
+
+    // LoadConfig - every "hardcoded" value from Config/settings.csv, then secrets.csv on top
+    private static void LoadConfig()
+    {
+        settings.Load(settings.SettingsFile);
+        settings.Load(settings.SecretsFile);
+    }
+
+    // SetUpServices - the shared pipeline (db, queue, http, worker if InProcess) + web extras
+    private static void SetUpServices(string[] args)
+    {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+        builder.WebHost.UseUrls(settings.Get("Url", "http://localhost:5000"));
+
+        bool runWorker = settings.IsMode("WorkerMode", "InProcess", "InProcess");
+        PipelineSetup.SetUpPipeline(builder.Services, settings, runWorker);
+
+        builder.Services.AddProblemDetails();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));   // "Running", not 1
+        SetUpRateLimit(builder.Services);
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
+
+        app = builder.Build();
+    }
+
+    // SetUpRateLimit - POST /api/jobs: CreateJobsPerMinute per client ip, then 429 (crawls are expensive)
+    private static void SetUpRateLimit(IServiceCollection services)
+    {
+        int jobsPerMinute = Math.Max(1, settings.GetInt("CreateJobsPerMinute", 30));
+        services.AddRateLimiter(limiter =>
+        {
+            limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            limiter.AddPolicy(JobEndpoints.CreateJobPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = jobsPerMinute, Window = TimeSpan.FromMinutes(1) }));
+        });
+    }
+
+    // MapEndpoints - error handling, the frontend (static files), Swagger, then the JSON API
+    private static void MapEndpoints()
+    {
+        app.UseExceptionHandler();      // unexpected errors -> logged + ProblemDetails
+        app.UseStatusCodePages();       // also turns the limiter's bare 429 into ProblemDetails
+
+        string webFolder = settings.GetPath("WebFolder", "wwwroot");
+        if (!File.Exists(Path.Combine(webFolder, "index.html")) && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
+            webFolder = Path.Combine(AppContext.BaseDirectory, "wwwroot");   // published build (Docker)
+        if (!File.Exists(Path.Combine(webFolder, "index.html")))
+            app.Logger.LogWarning("FAIL React UI not built ({Folder}): run \"npm install\" + \"npm run build\" in web/ (the API works without it)", webFolder);
+        Directory.CreateDirectory(webFolder);
+        PhysicalFileProvider webFiles = new PhysicalFileProvider(webFolder);
+        StaticFileOptions webOptions = new StaticFileOptions { FileProvider = webFiles };
+        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = webFiles });
+        app.UseStaticFiles(webOptions);
+        app.UseRouting();               // after static files, or the React fallback route would answer /assets/*.js
+        app.UseRateLimiter();           // after routing: it reads the endpoint's policy
+
+        if (settings.GetBool("Swagger", true))
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI();         // /swagger
+        }
+
+        HealthEndpoints.Map(app);
+        ConfigEndpoints.Map(app);
+        JobEndpoints.Map(app);
+        JobEventEndpoints.Map(app);
+
+        // React routes (/jobs/{id}, /history) -> index.html on reload; unknown /api paths stay 404
+        app.MapFallbackToFile("{*path:regex(^(?!api/|health/|swagger).*$)}", "index.html", webOptions);
+    }
+
+    // CheckDatabase - create tables if they are missing (retries while SQL Server starts)
+    private static async Task CheckDatabase()
+    {
+        await DbSetup.CreateDatabase(app.Services, settings, app.Logger);
+    }
+
+    // RunApp - start the web server
+    private static async Task RunApp()
+    {
+        app.Logger.LogInformation("Open {Url}  (Swagger: /swagger)", settings.Get("Url", "http://localhost:5000"));
+        await app.RunAsync();
+    }
+
+    // CleanUp - anything to close or flush on the way out
+    private static void CleanUp()
+    {
+        Console.WriteLine("THE end");
+    }
+}

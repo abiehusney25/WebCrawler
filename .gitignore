@@ -1,0 +1,27 @@
+# build output
+bin/
+obj/
+publish/
+
+# run output (created on first run)
+Output/
+Input/
+Logs/
+*.db
+*.db-shm
+*.db-wal
+
+# secrets - commit Config/secrets.sample.csv and .env.sample instead
+Config/secrets.csv
+.env
+
+# tools
+node_modules/
+.vs/
+.idea/
+.vscode/
+*.user
+TestResults/
+
+# React build output (web/ -> npm run build); Docker and RunCrawler.bat build it
+src/WebCrawler.Api/wwwroot/

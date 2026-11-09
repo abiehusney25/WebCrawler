@@ -1,0 +1,20 @@
+<!--
+  WebCrawler.Worker
+  Tiny host that runs only the worker (WorkerMode=Separate / in Docker).
+  Same Core code as the API; it just has no web endpoints.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WebCrawler.Core\WebCrawler.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

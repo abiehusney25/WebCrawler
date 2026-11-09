@@ -1,0 +1,16 @@
+<!--
+  WebCrawler.Api
+  ASP.NET Core Minimal API + the plain HTML/JS frontend in wwwroot.
+  With WorkerMode=InProcess it also runs the worker, so one "dotnet run" is enough.
+-->
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WebCrawler.Core\WebCrawler.Core.csproj" />
+  </ItemGroup>
+
+</Project>
