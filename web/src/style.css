@@ -1,6 +1,6 @@
 /* Web Crawler - one small stylesheet, no framework (clarity over design) */
 body    { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #f5f6f8; color: #222; }
-header  { display: flex; align-items: center; gap: 1rem; padding: 0.8rem 2rem; background: #1f2d3d; color: #fff; }
+header  { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 0.8rem 2rem; background: #1f2d3d; color: #fff; }
 header h1 { font-size: 1.4rem; margin: 0; }
 header a  { color: #fff; text-decoration: none; }
 nav     { display: flex; gap: 1rem; flex: 1; }
@@ -19,25 +19,30 @@ button:disabled { cursor: default; opacity: 0.6; }
 .link-button { padding: 0 0.3rem; border: none; background: none; color: #1a5fb4; text-decoration: underline; }
 
 table   { width: 100%; border-collapse: collapse; }
-th, td  { text-align: left; padding: 0.4rem; border-bottom: 1px solid #e3e3e3; word-break: break-all; }
+th, td  { text-align: left; padding: 0.4rem; border-bottom: 1px solid #e3e3e3; }
+th      { white-space: nowrap; }
+/* only long urls may break mid-word; headers, dates and badges stay whole */
+td.url  { overflow-wrap: anywhere; min-width: 16rem; }
+.table-wrap { overflow-x: auto; }     /* a wide table scrolls inside its box on a phone, not the whole page */
+td.nowrap { white-space: nowrap; }
 tr.clickable { cursor: pointer; }
 tr.clickable:hover { background: #f0f4fa; }
 .pager  { display: flex; gap: 1rem; align-items: center; margin-top: 0.6rem; }
 
 dl      { display: grid; grid-template-columns: 8rem 1fr; gap: 0.2rem 1rem; }
 dt      { font-weight: 600; }
-dd      { margin: 0; word-break: break-all; }
+dd      { margin: 0; overflow-wrap: anywhere; }
 progress { width: 100%; height: 0.8rem; }
 
 .tree, .tree ul { list-style: none; padding-left: 1.2rem; }
-.tree li  { margin: 0.25rem 0; word-break: break-all; }
+.tree li  { margin: 0.25rem 0; overflow-wrap: anywhere; }
 .links li { font-size: 0.85rem; }
 .internal { color: #1b7f3b; }
 .external { color: #6b4fbb; }
 .muted    { color: #777; font-size: 0.85rem; }
 .status   { min-height: 1.2rem; }
 
-.badge  { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 4px; background: #888; color: #fff; font-size: 0.85rem; }
+.badge  { display: inline-block; white-space: nowrap; padding: 0.15rem 0.6rem; border-radius: 4px; background: #888; color: #fff; font-size: 0.85rem; }
 .ok     { color: #1b7f3b; }
 .fail   { color: #b3261e; }
 .badge.ok   { background: #1b7f3b; color: #fff; }

@@ -38,22 +38,24 @@ export function History() {
       {error && <p className="fail" role="alert">{error}</p>}
       {!isLoading && !error && history && history.items.length === 0 && <p className="muted">No crawl jobs yet.</p>}
       {history && history.items.length > 0 && (
-        <table>
-          <thead>
-            <tr><th>Created</th><th>URL</th><th>Depth</th><th>Status</th><th>Completed</th></tr>
-          </thead>
-          <tbody>
-            {history.items.map(job => (
-              <tr key={job.jobId} className="clickable" onClick={() => navigate(`/jobs/${job.jobId}`)}>
-                <td>{formatDate(job.createdAt)}</td>
-                <td>{showUrl(job.url)}</td>
-                <td>{job.maxDepth}</td>
-                <td><StatusBadge status={job.status} /></td>
-                <td>{formatDate(job.completedAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Created</th><th>URL</th><th>Depth</th><th>Status</th><th>Completed</th></tr>
+            </thead>
+            <tbody>
+              {history.items.map(job => (
+                <tr key={job.jobId} className="clickable" onClick={() => navigate(`/jobs/${job.jobId}`)}>
+                  <td className="nowrap">{formatDate(job.createdAt)}</td>
+                  <td className="url">{showUrl(job.url)}</td>
+                  <td>{job.maxDepth}</td>
+                  <td><StatusBadge status={job.status} /></td>
+                  <td className="nowrap">{formatDate(job.completedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {history && history.totalCount > history.pageSize && (
         <div className="pager">
