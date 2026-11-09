@@ -38,13 +38,13 @@ The passwords have safe local defaults; copy `.env.sample` to `.env` to change t
 ### Option B - without Docker (.NET 8 SDK + Node.js 20+)
 
 ```bash
-cd web && npm ci && npm run build && cd ..
 dotnet run --project src/WebCrawler.Api
 ```
 
-Open http://localhost:5000, or on Windows just double-click **`RunCrawler.bat`** (it builds the web page
-the first time). This uses the same code with a SQLite file instead of SQL Server, and a built-in queue
-instead of RabbitMQ, so there is nothing else to install or start.
+Open http://localhost:5000. On Windows you can also double-click **`RunCrawler.bat`**, or press Run in
+Visual Studio. The first build also builds the React web page from `web/` (that's why Node.js is needed); if
+Node.js is missing, the page at localhost:5000 explains what to do. This uses the same code with a SQLite
+file instead of SQL Server, and a built-in queue instead of RabbitMQ, so there is nothing else to install or start.
 
 ### Tests
 
