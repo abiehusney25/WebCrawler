@@ -113,7 +113,10 @@ public class Program
         if (File.Exists(Path.Combine(webFolder, "index.html")))
             app.MapFallbackToFile(pagePattern, "index.html", webOptions);
         else
+        {
+            app.MapGet("/", () => Results.Content(WebPageMissing, "text/html", statusCode: 503)).ExcludeFromDescription();
             app.MapFallback(pagePattern, () => Results.Content(WebPageMissing, "text/html", statusCode: 503));
+        }
     }
 
     private const string WebPageMissing = """
